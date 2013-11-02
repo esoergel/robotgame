@@ -12,6 +12,7 @@ import time
 import json
 import zlib
 import base64
+import sys, traceback
 ###
 import codejail
 from robotexception import *
@@ -279,10 +280,15 @@ class Game:
 
             # get next action
             try:
-                next_action = limit_execution_time(settings.max_usercode_time/1000, user_robot.act, game_info)
+                next_action = limit_execution_time(
+                        settings.max_usercode_time/1000, user_robot.act, game_info)
                 if not InternalRobot.is_valid_action(next_action):
                     raise Exception
             except Exception:
+                print "The Robot at (%s, %s) raised an exception:" % robot.location
+                print '-'*60
+                traceback.print_exc(file=sys.stdout)
+                print '-'*60
                 next_action = ['guard']
 
             actions[robot] = next_action

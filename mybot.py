@@ -82,7 +82,6 @@ class Robot:
             return self.attack(self.adj_enemies[0])
         else:
             x, y = random.choice(self.move_options)
-            sfls
             return self.move(x, y)
 
     def move(self, x, y):
