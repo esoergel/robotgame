@@ -1,8 +1,5 @@
 import random, math
 
-class BadMove(Exception):
-    pass
-
 class Robot:
     obstacles = [
         (0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0),
@@ -44,7 +41,6 @@ class Robot:
     board_size = 19
     robot_hp = 50
     attack_range = (15, 20)
-    avg_attack = (attack_range[0] + attack_range[1])/2
     collision_damage = 5
     suicide_damage = 10
     # game = {
@@ -119,52 +115,24 @@ class Robot:
         self.game = game
         self.x, self.y = self.location
         self.parse_robots()
-        actions = [
-            self.do_suicide,
-            self.do_attack,
-            self.do_move,
-        ]
-        for action in actions:
-            try:
-                act = action()
-                if act is not None:
-                    return act
-            except BadMove:
-                pass
-        return self.guard()
-
-    def do_suicide(self):
-        num_enemies = len(self.adj_enemies)
-        dealt = self.suicide_damage * num_enemies
-        taken = self.avg_attack * num_enemies
-        if num_enemies < 2:
-            raise BadMove
-        elif dealt >= self.hp:
-            # Deal more than I take
+        # print "Robot %s, %s adjacent" % (self.location, len(self.adj_enemies)),
+        if len(self.adj_enemies) > 1:
+            # probably shouldn't do this until health is < 20
+            # otherwise attack one with least health
             return self.suicide()
-        elif taken >= self.hp:
-            # gonna die anyways
-            return self.suicide()
-
-    def do_attack(self):
-        if len(self.adj_enemies) >= 1:
-            weakest = self.adj_enemies.pop()
-            while self.adj_enemies:
-                robot = self.adj_enemies.pop()
-                if robot['hp'] < weakest['hp']:
-                    weakest = robot
-            return self.attack(weakest)
-
-    def do_move(self):
-        return self.hunt(self.closest_enemy())
-
-    def do_meander(self):
-        options = self.adj_squares()
-        random.shuffle(options)
-        while options:
-            square = options.pop()
-            if self.is_good_square(*square):
-                return self.move_to(*square)
+        elif len(self.adj_enemies) == 1:
+            return self.attack(self.adj_enemies[0])
+        # elif self.distance_to_bot(self.closest_enemy()) < 5:
+            # return self.hunt(self.closest_enemy())
+        else:
+            # meander
+            options = self.adj_squares()
+            random.shuffle(options)
+            while options:
+                square = options.pop()
+                if self.is_good_square(*square):
+                    return self.move_to(*square)
+            return self.guard()
 
     def move_to(self, x, y):
         return ['move', (x, y)]
@@ -181,8 +149,8 @@ class Robot:
         return self.move_towards(*robot['location'])
 
     def move(self, x, y):
+        "one must be zero, the other 1 or -1"
         return ['move', (self.x+x, self.y+y)]
-        # return ['move', (self.x+x, self.y+y)]
 
     def attack(self, robot):
         "one must be zero, the other 1 or -1"

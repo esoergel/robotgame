@@ -26,6 +26,7 @@ class PlayerCodeJail:
 
         self.mod = imp.new_module('usercode%d' % id(self))
         self.mod.__dict__['__builtins__'] = safe_builtins
+        self.mod.__dict__['__builtins__']['type'] = type
         self.mod.__dict__['__builtins__']['__import__'] = PlayerCodeJail.create_import_hook(self)
         self.mod.__dict__['__builtins__']['getattr'] = PlayerCodeJail.create_getattr_hook(self)
         exec code in self.mod.__dict__
