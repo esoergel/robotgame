@@ -1,3 +1,7 @@
+"""
+don't overkill!
+anyone still sitting on spawn points?
+"""
 import random, math
 
 class BadMove(Exception):
@@ -47,6 +51,7 @@ class Robot:
     avg_attack = (attack_range[0] + attack_range[1])/2
     collision_damage = 5
     suicide_damage = 10
+    previous_turn = 0
     # game = {
         # # a dictionary of all robots on the field mapped
         # # by {location: robot}
@@ -82,48 +87,59 @@ class Robot:
                 self.friends.append(robot)
             else:
                 self.enemies.append(robot)
-            x, y = robot['location']
-            if abs(self.x-x) + abs(self.y-y) == 1:
+            # x, y = robot['location']
+            # if abs(self.x-x) + abs(self.y-y) == 1:
+                # if robot['player_id'] == self.player_id:
+                    # self.adj_friends.append(robot)
+                # else:
+                    # self.adj_enemies.append(robot)
+            if robot['location'] in self.adj_squares():
                 if robot['player_id'] == self.player_id:
                     self.adj_friends.append(robot)
                 else:
                     self.adj_enemies.append(robot)
+
+    def is_spawn_turn(self):
+        return self.turn % self.spawn_every == self.spawn_every - 1
     
     def is_good_square(self, x, y):
-        stuff = self.occupied + self.obstacles
-        turn = self.game['turn'] 
-        if turn % self.spawn_every == self.spawn_every - 1:
+        stuff = self.occupied + self.obstacles + self.occupying
+        stuff = [sq for sq in stuff if sq not in self.vacating]
+        if self.is_spawn_turn():
             stuff += self.spawn_coords
         return (x, y) not in stuff
 
+    def distance_between(self, x1, y1, x2, y2):
+        return math.sqrt((x1-x2)**2 + (y1-y2)**2)
+
     def distance_to(self, x, y):
-        return math.sqrt((self.x - x)**2 + (self.y - y)**2)
+        return self.distance_between(self.x, self.y, x, y)
 
-    def distance_to_bot(self, robot):
-        if robot is None:
-            return 10000
-        return self.distance_to(*robot['location'])
-
-    def closest_enemy(self):
-        # return min(
-            # self.enemies,
-            # key=lambda robot: self.distance_to(*robot['location'])
-        # )
-        closest = None
+    def distance_to_enemy(self, x, y):
+        min_distance = float('inf')
         for robot in self.enemies:
-            if self.distance_to_bot(robot) < self.distance_to_bot(closest):
-                closest = robot
-        return closest
+            distance = self.distance_between(x, y, *robot['location'])
+            if distance < min_distance:
+                min_distance = distance
+        return min_distance
+
+    def first_of_turn(self):
+        self.occupying = []
+        self.vacating = []
 
     def act(self, game):
         self.game = game
         self.x, self.y = self.location
+        self.turn = game['turn']
         self.parse_robots()
         actions = [
             self.do_suicide,
             self.do_attack,
             self.do_move,
         ]
+        if self.previous_turn != self.turn:
+            self.first_of_turn()
+            self.previous_turn = self.turn
         for action in actions:
             try:
                 act = action()
@@ -138,7 +154,7 @@ class Robot:
         dealt = self.suicide_damage * num_enemies
         taken = self.avg_attack * num_enemies
         if num_enemies < 2:
-            raise BadMove
+            return None
         elif dealt >= self.hp:
             # Deal more than I take
             return self.suicide()
@@ -147,6 +163,10 @@ class Robot:
             return self.suicide()
 
     def do_attack(self):
+        if self.is_spawn_turn() and \
+                self.location in self.spawn_coords:
+            print "Move off spawn point"
+            raise BadMove
         if len(self.adj_enemies) >= 1:
             weakest = self.adj_enemies.pop()
             while self.adj_enemies:
@@ -156,17 +176,30 @@ class Robot:
             return self.attack(weakest)
 
     def do_move(self):
-        return self.hunt(self.closest_enemy())
-
-    def do_meander(self):
-        options = self.adj_squares()
-        random.shuffle(options)
+        options = []
+        for sq in self.adj_squares():
+            if self.is_good_square(*sq):
+                options.append(sq)
+        if not options:
+            return None
+        closest = options.pop()
         while options:
-            square = options.pop()
-            if self.is_good_square(*square):
-                return self.move_to(*square)
+            sq = options.pop()
+            if self.distance_to_enemy(*sq) < self.distance_to_enemy(*closest):
+                closest = sq
+        return self.move_to(*closest)
+
+    # def do_meander(self):
+        # options = self.adj_squares()
+        # random.shuffle(options)
+        # while options:
+            # square = options.pop()
+            # if self.is_good_square(*square):
+                # return self.move_to(*square)
 
     def move_to(self, x, y):
+        self.vacating.append((self.x, self.y))
+        self.occupying.append((x, y))
         return ['move', (x, y)]
 
     def move_towards(self, x, y):

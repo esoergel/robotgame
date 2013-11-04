@@ -290,7 +290,6 @@ class Game:
                 traceback.print_exc(file=sys.stdout)
                 print '-'*60
                 next_action = ['guard']
-
             actions[robot] = next_action
 
         for robot, action in actions.iteritems():
